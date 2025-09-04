@@ -1,0 +1,121 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model api_logs {
+  id           BigInt         @id @default(autoincrement()) @db.UnsignedBigInt
+  level        api_logs_level @default(info)
+  source       String         @db.VarChar(64)
+  message      String         @db.VarChar(512)
+  context_json Json?
+  created_at   DateTime       @default(now()) @db.Timestamp(0)
+
+  @@index([level, created_at], map: "idx_logs_level_time")
+}
+
+model bank_snapshots {
+  id                   BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  contract_balance_wei String   @db.VarChar(78)
+  chain_id             BigInt   @db.UnsignedBigInt
+  block_number         BigInt   @db.UnsignedBigInt
+  timestamp_utc        DateTime @db.DateTime(0)
+  created_at           DateTime @default(now()) @db.Timestamp(0)
+
+  @@index([chain_id, block_number], map: "idx_bank_chain_block")
+  @@index([timestamp_utc], map: "idx_bank_time")
+}
+
+model deposits {
+  id                  BigInt          @id @default(autoincrement()) @db.UnsignedBigInt
+  tx_hash             String          @db.Char(66)
+  player_address      String          @db.Char(42)
+  player_address_norm String?         @db.Char(42)
+  chain_id            BigInt          @db.UnsignedBigInt
+  amount_wei          String          @db.VarChar(78)
+  block_number        BigInt          @db.UnsignedBigInt
+  timestamp_utc       DateTime        @db.DateTime(0)
+  status              deposits_status @default(ok)
+  created_at          DateTime        @default(now()) @db.Timestamp(0)
+
+  @@unique([tx_hash, chain_id], map: "uq_deposit_tx")
+  @@index([block_number], map: "idx_deposit_block")
+  @@index([player_address_norm, chain_id, timestamp_utc], map: "idx_deposit_player")
+}
+
+model players {
+  id                  BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  address_checksum    String   @db.Char(42)
+  address_norm        String?  @db.Char(42)
+  chain_id            BigInt   @default(11155111) @db.UnsignedBigInt
+  total_spins         BigInt   @default(0) @db.UnsignedBigInt
+  total_deposited_wei String   @default("0") @db.VarChar(78)
+  total_bet_wei       String   @default("0") @db.VarChar(78)
+  total_payout_wei    String   @default("0") @db.VarChar(78)
+  total_withdrawn_wei String   @default("0") @db.VarChar(78)
+  net_wei             String   @default("0") @db.VarChar(78)
+  created_at          DateTime @default(now()) @db.Timestamp(0)
+  updated_at          DateTime @default(now()) @db.Timestamp(0)
+
+  @@unique([address_norm, chain_id], map: "uq_player_addr_chain")
+  @@index([updated_at], map: "idx_player_updated")
+}
+
+model spins {
+  id                  BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  tx_hash             String   @db.Char(66)
+  player_address      String   @db.Char(42)
+  player_address_norm String?  @db.Char(42)
+  chain_id            BigInt   @db.UnsignedBigInt
+  bet_wei             String   @db.VarChar(78)
+  payout_wei          String   @db.VarChar(78)
+  reel_1              Int
+  reel_2              Int
+  reel_3              Int
+  rnd_seed            String?  @db.VarChar(78)
+  block_number        BigInt   @db.UnsignedBigInt
+  timestamp_utc       DateTime @db.DateTime(0)
+  created_at          DateTime @default(now()) @db.Timestamp(0)
+
+  @@unique([tx_hash, chain_id], map: "uq_spin_tx")
+  @@index([block_number], map: "idx_spin_block")
+  @@index([player_address_norm, chain_id, timestamp_utc], map: "idx_spin_player")
+}
+
+model withdrawals {
+  id                  BigInt             @id @default(autoincrement()) @db.UnsignedBigInt
+  tx_hash             String             @db.Char(66)
+  player_address      String             @db.Char(42)
+  player_address_norm String?            @db.Char(42)
+  chain_id            BigInt             @db.UnsignedBigInt
+  amount_wei          String             @db.VarChar(78)
+  block_number        BigInt             @db.UnsignedBigInt
+  timestamp_utc       DateTime           @db.DateTime(0)
+  status              withdrawals_status @default(ok)
+  created_at          DateTime           @default(now()) @db.Timestamp(0)
+
+  @@unique([tx_hash, chain_id], map: "uq_withdraw_tx")
+  @@index([block_number], map: "idx_withdraw_block")
+  @@index([player_address_norm, chain_id, timestamp_utc], map: "idx_withdraw_player")
+}
+
+enum api_logs_level {
+  info
+  warn
+  error
+}
+
+enum withdrawals_status {
+  ok
+  failed
+  pending
+}
+
+enum deposits_status {
+  ok
+  failed
+}
