@@ -1,65 +1,78 @@
 # 🎰 OnlineCasino Backend
-
+```text
 Backend для децентрализованной игры **Slot Machine**.  
 Сервис отвечает за:
 - хранение истории игр, депозитов и выводов в MySQL,
 - предоставление API для фронта,
 - интеграцию с ончейн-событиями смарт-контракта (через `ethers`),
 - автоподтяжку событий через индексатор.
-
+```
 ---
 
 ## 🚀 Запуск проекта
+```text
 npm run dev
+
 npm run indexer
+
 npx prisma studio - просмотр БД
+```
+
 
 ### 1. Установить зависимости
+```text
 cd backend
 npm install
+```
+
 
 ### 2. Запустить MySQL (Docker)
-
+```text
 docker run --name mysql8 \
   -e MYSQL_ROOT_PASSWORD=pass \
   -e TZ=UTC \
   -p 3306:3306 \
   -v mysql8-data:/var/lib/mysql \
   -d mysql:8
+```
+
 
 ### 3. Применить схему БД
-
+```text
 npx prisma db pull    # подтянуть структуру (если БД уже создана)
+
 npx prisma generate   # сгенерировать Prisma Client
+```
+
 
 ### 4. Настроить .env
-
+```text
 Пример есть в репозитории (.env.example).
+
 Главное: DATABASE_URL, CHAIN_ID_DEFAULT, RPC_URL_*, CONTRACT_ADDRESS_*.
+```
+
 
 ### 5. Запуск сервера
-
+```text
 npm run dev
 
 → API будет доступно на http://localhost:4000.
+```
+
 
 ### 6. Запуск индексатора
+```text
+Индексатор слушает события контракта (Deposit, SpinResult, Withdraw) и пишет их в БД автоматически.
+```
 
-Индексатор слушает события контракта (Deposit, SpinResult, Withdraw)
-и пишет их в БД автоматически.
-
-npm run indexer
-
-⚠️ Для корректной работы нужны ABI и CONTRACT_ADDRESS_<chainId> в .env.
-
-⸻
 
 ### 7. 📡 API эндпоинты
-
+```text
 🔹 Health
 	•	GET /health → { ok: true, db: "up" }
 
-⸻
+
 
 🔹 Spins (/api/spins)
 	•	GET /api/spins/test — последние N спинов (smoke-test).
@@ -74,7 +87,7 @@ npm run indexer
 🔹 Withdrawals (/api/withdrawals)
 	•	POST /api/withdrawals/confirm — подтвердить транзакцию вывода, записать в БД.
 
-⸻
+
 
 🔹 Players (/api/players)
 	•	GET /api/players/:address/summary?chainId= — агрегированная сводка по игроку.
@@ -86,11 +99,11 @@ npm run indexer
 	•	GET /api/stats/summary?chainId= — общая сводка (ставки, выплаты, RTP).
 	•	GET /api/stats/rtp?window=7d&chainId= — RTP за окно (24h / 7d / 30d).
 	•	GET /api/stats/leaderboard?chainId=&metric=&limit= — лидерборд (дублирует players).
+```
 
-⸻
 
 ### 8. 🧩 Архитектура проекта
-
+```text
 ONLINECASINO/
 ├── prisma/
 │   └── schema.prisma                 # схема БД для Prisma
@@ -120,19 +133,23 @@ ONLINECASINO/
 ├── package-lock.json                
 ├── README.md                        
 └── schema.sql                        # SQL для первичного создания БД
+```
 
 
 ### 9. 🧪 Тестовые сети
+```text
 	•	Hardhat local (31337) — быстрые локальные тесты.
 	•	Sepolia testnet (11155111) — публичная тестовая сеть.
 
 Обе сети уже поддерживаются через .env.
+```
 
-⸻
 
 ### 10. ✅ TODO
+```text
 	•	Вставить ABI в services/abi.js.
 	•	Сделать idempotent insert в /spins/confirm (аналогично deposits/withdrawals).
 	•	Подключить CRON/worker для периодического /players/:address/recalc.
 	•	Реализовать reconciliation (сверка БД с ончейном).
 	•	(Опц.) /bank/summary для отчётности.
+```
