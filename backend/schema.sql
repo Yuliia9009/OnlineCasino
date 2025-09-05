@@ -176,3 +176,57 @@ IF NOT EXISTS api_logs
   KEY idx_logs_level_time
 (level, created_at)
 ) ENGINE=InnoDB;
+
+CREATE TABLE
+IF NOT EXISTS sessions
+(
+  id               varchar
+(128) PRIMARY KEY,
+  address_norm     varchar
+(42)  NOT NULL,
+  address_checksum varchar
+(42)  NOT NULL,
+  created_at       datetime     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  expires_at       datetime     NOT NULL,
+  last_used_at     datetime     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  ip               varchar
+(64)  NULL,
+  user_agent       varchar
+(255) NULL,
+  INDEX idx_sessions_address
+(address_norm),
+  INDEX idx_sessions_exp
+(expires_at)
+);
+
+CREATE TABLE
+IF NOT EXISTS auth_nonces
+(
+  nonce        varchar
+(128) PRIMARY KEY,
+  address_norm varchar
+(42)  NULL,
+  created_at   datetime     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  expires_at   datetime     NOT NULL,
+  used         boolean      NOT NULL DEFAULT 0,
+  INDEX idx_nonces_exp_used
+(expires_at, used)
+);
+
+CREATE TABLE
+IF NOT EXISTS api_logs
+(
+  id         bigint PRIMARY KEY AUTO_INCREMENT,
+  level      varchar
+(16)  NOT NULL,
+  message    varchar
+(255) NOT NULL,
+  path       varchar
+(255) NULL,
+  method     varchar
+(16)  NULL,
+  address    varchar
+(42)  NULL,
+  meta       text         NULL,
+  created_at datetime     NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

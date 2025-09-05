@@ -1,6 +1,7 @@
 import { Router } from "express";
 import prisma from "../db.js";
 import logger from "../utils/logger.js";
+import auth from "../middlewares/auth.js";
 
 const r = Router();
 
@@ -64,9 +65,31 @@ r.get("/:address/summary", async (req, res) => {
   }
 });
 
-/**
- * GET /api/players/:address/spins?chainId=&limit=&cursor=
- */
+// --- Приватные, требуют входа через SIWE ---
+r.get("/me/spins", auth(true), async (req, res) => {
+  const address = req.user.addressNorm;
+  const chainId = toInt(req.query.chainId, DEFAULT_CHAIN_ID);
+  const limit = toInt(req.query.limit, 20, 100);
+  const cursorId = req.query.cursor ? Number(req.query.cursor) : undefined;
+  const cursor = cursorId ? { id: cursorId } : undefined;
+
+  const items = await prisma.spins.findMany({
+    where: { player_address_norm: address, chain_id: chainId },
+    orderBy: { id: "desc" },
+    take: limit,
+    ...(cursor ? { skip: 1, cursor } : {}),
+    select: {
+      id: true, tx_hash: true, bet_wei: true, payout_wei: true,
+      reel_1: true, reel_2: true, reel_3: true,
+      block_number: true, timestamp_utc: true,
+    },
+  });
+
+  const nextCursor = items.length ? items[items.length - 1].id : null;
+  return res.json({ ok: true, items, nextCursor });
+});
+
+// GET /api/players/:address/spins?chainId=&limit=&cursor=
 r.get("/:address/spins", async (req, res) => {
   try {
     const address = normAddr(req.params.address);
@@ -113,9 +136,23 @@ r.get("/:address/spins", async (req, res) => {
   }
 });
 
-/**
- * POST /api/players/:address/recalc?chainId=
- */
+// --- Приватные, требуют входа через SIWE ---
+r.get("/me/summary", auth(true), async (req, res) => {
+  const address = req.user.addressNorm;              // из cookie-сессии
+  const chainId = toInt(req.query.chainId, DEFAULT_CHAIN_ID);
+  const player = await prisma.players.findFirst({
+    where: { address_norm: address, chain_id: chainId },
+    select: {
+      id: true, address_checksum: true, total_spins: true,
+      total_deposited_wei: true, total_bet_wei: true,
+      total_payout_wei: true, total_withdrawn_wei: true,
+      net_wei: true, updated_at: true,
+    },
+  });
+  return res.json({ ok: true, player: player || null });
+});
+
+// POST /api/players/:address/recalc?chainId=
 r.post("/:address/recalc", async (req, res) => {
   try {
     const address = normAddr(req.params.address);
@@ -188,9 +225,7 @@ r.post("/:address/recalc", async (req, res) => {
   }
 });
 
-/**
- * GET /api/players/leaderboard/top?chainId=&metric=&limit=
- */
+// GET /api/players/leaderboard/top?chainId=&metric=&limit=
 r.get("/leaderboard/top", async (req, res) => {
   try {
     const chainId = toInt(req.query.chainId, DEFAULT_CHAIN_ID);

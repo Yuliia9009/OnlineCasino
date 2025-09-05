@@ -178,7 +178,7 @@ r.post("/confirm", async (req, res) => {
       return res.json({ ok: true, alreadyConfirmed: true, saved: evt, chainId: net.chainId });
     }
 
-    return res.json({ ok: true, saved: evt, chainId: net.chainId });
+    return res.status(201).json({ ok: true, saved: evt, chainId: net.chainId });
   } catch (e) {
     if (e.code === "chain_not_configured") {
       logger.error({ chainId: req.body?.chainId }, "spins/confirm: chain_not_configured");

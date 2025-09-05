@@ -119,3 +119,38 @@ enum deposits_status {
   ok
   failed
 }
+
+model sessions {
+  id               String   @id @db.VarChar(128)         // sid (uuid/random)
+  address_norm     String   @db.VarChar(42)              // 0x.. (lowercase)
+  address_checksum String   @db.VarChar(42)
+  created_at       DateTime @default(now())
+  expires_at       DateTime
+  last_used_at     DateTime @default(now())
+  ip               String?  @db.VarChar(64)
+  user_agent       String?  @db.VarChar(255)
+
+  @@index([address_norm])
+  @@index([expires_at])
+}
+
+model auth_nonces {
+  nonce       String   @id @db.VarChar(128)
+  address_norm String? @db.VarChar(42)                   // можно привязывать к адресу (опц)
+  created_at  DateTime @default(now())
+  expires_at  DateTime
+  used        Boolean  @default(false)
+
+  @@index([expires_at, used])
+}
+
+model api_logs {
+  id         BigInt   @id @default(autoincrement())
+  level      String   @db.VarChar(16)                    // info|warn|error
+  message    String   @db.VarChar(255)
+  path       String?  @db.VarChar(255)
+  method     String?  @db.VarChar(16)
+  address    String?  @db.VarChar(42)
+  meta       String?  @db.Text
+  created_at DateTime @default(now())
+}

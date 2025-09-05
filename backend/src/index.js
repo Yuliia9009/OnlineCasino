@@ -1,3 +1,6 @@
+import cookieParser from "cookie-parser";
+import authRoutes from "./routes/auth.js";
+
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
@@ -20,6 +23,7 @@ const NODE_ENV = process.env.NODE_ENV || "development";
 
 /* ---------- security ---------- */
 app.use(helmet()); // базовые security-заголовки
+app.use(cookieParser()); // парсинг куки
 
 // rate limit (в dev отключить 0, в prod – включить - 1000 запросов с одного IP в 15 мин)
 const limiter = rateLimit({
@@ -53,6 +57,9 @@ if (NODE_ENV !== "production") {
     next();
   });
 }
+
+// маршруты аутентификации
+app.use("/auth", authRoutes);
 
 // лог исходящих ответов (статус + время)
 app.use((req, res, next) => {
