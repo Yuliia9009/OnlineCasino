@@ -1,0 +1,41 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "Backend for OnlineCasino project",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "nodemon src/index.js",
+    "indexer": "node src/workers/indexer.js",
+    "generate": "prisma generate",
+    "db:pull": "prisma db pull",
+    "db:push": "prisma db push",
+    "studio": "prisma studio",
+    "lint": "eslint . --ext .js,.mjs",
+    "format": "prettier --write ."
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@prisma/client": "^6.15.0",
+    "cookie": "^1.0.2",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.2",
+    "ethers": "^6.15.0",
+    "express": "^5.1.0",
+    "express-rate-limit": "^8.1.0",
+    "helmet": "^8.1.0",
+    "morgan": "^1.10.1",
+    "pino": "^9.0.0",
+    "pino-pretty": "^11.0.0",
+    "siwe": "^3.0.0"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3",
+    "eslint": "^9.11.0",
+    "nodemon": "^3.1.0",
+    "prettier": "^3.3.3",
+    "prisma": "^6.15.0"
+  }
+}
