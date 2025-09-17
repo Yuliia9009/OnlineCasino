@@ -6,3 +6,5 @@ logs/
 /generated/prisma
 node_modules/
 .env
+node_modules/
+.env
