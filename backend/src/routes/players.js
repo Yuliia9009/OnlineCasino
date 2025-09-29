@@ -26,6 +26,57 @@ const isAddress = (a) => /^0x[0-9a-fA-F]{40}$/.test(a || "");
 /* ============ РОУТЫ ============ */
 
 /**
+ * GET /api/players?limit=&offset=&chainId=&search=
+ * Пагинированный список игроков (для админки).
+ */
+r.get("/", async (req, res) => {
+  try {
+    const chainId = toInt(req.query.chainId, DEFAULT_CHAIN_ID);
+    const limit = toInt(req.query.limit, 10, 100);
+    const offset = Math.max(0, Number(req.query.offset || 0));
+    const search = (req.query.search || "").toLowerCase().trim();
+
+    const where = {
+      chain_id: chainId,
+      ...(search
+        ? {
+            OR: [
+              { address_norm: { contains: search } },
+              { address_checksum: { contains: search } },
+            ],
+          }
+        : {}),
+    };
+
+    const [items, total] = await Promise.all([
+      prisma.players.findMany({
+        where,
+        orderBy: { updated_at: "desc" },
+        take: limit,
+        skip: offset,
+        select: {
+          address_checksum: true,
+          address_norm: true,
+          total_spins: true,
+          total_deposited_wei: true,
+          total_bet_wei: true,
+          total_payout_wei: true,
+          total_withdrawn_wei: true,
+          net_wei: true,
+          updated_at: true,
+        },
+      }),
+      prisma.players.count({ where }),
+    ]);
+
+    return res.json({ ok: true, items, total });
+  } catch (e) {
+    logger.error(e, "players:list_error");
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+/**
  * GET /api/players/:address/summary?chainId=
  */
 r.get("/:address/summary", async (req, res) => {

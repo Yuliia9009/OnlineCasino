@@ -58,7 +58,6 @@ r.post("/verify", async (req, res) => {
       return res.status(400).json({ ok:false, error: "bad_address" });
     }
 
-    // nonce валиден и не использован?
     const rec = await prisma.auth_nonces.findUnique({ where: { nonce: siwe.nonce } });
     if (!rec || rec.used || rec.expires_at < now()) {
       return res.status(400).json({ ok:false, error: "nonce_invalid" });
@@ -68,7 +67,6 @@ r.post("/verify", async (req, res) => {
       data: { used: true, address_norm: address }
     });
 
-    // создаём сессию
     const sid = crypto.randomBytes(24).toString("base64url");
     const expiresAt = addMinutes(now(), SESSION_TTL_MIN);
     await prisma.sessions.create({

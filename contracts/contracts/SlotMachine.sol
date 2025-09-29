@@ -28,6 +28,16 @@ contract SlotMachine {
         _;
     }
 
+    // Изменение цены спина
+    event SpinPriceUpdated(uint256 oldPrice, uint256 newPrice);
+
+    function setSpinPrice(uint256 newPrice) external onlyOwner {
+        require(newPrice > 0, "price = 0");
+        uint256 old = spinPrice;
+        spinPrice = newPrice;
+        emit SpinPriceUpdated(old, newPrice);
+    }
+
     constructor() {
         owner = msg.sender;
     }
@@ -75,13 +85,13 @@ contract SlotMachine {
 
     // выигрыш
     function calculateWin(uint[3] memory reels) internal view returns (uint) {
-        // все три одинаковые  x10
+        // все три одинаковые  x8
         if (reels[0] == reels[1] && reels[1] == reels[2]) {
-            return spinPrice * 10;
+            return spinPrice * 8;
         }
-        // два одинаковые  x2
+        // два одинаковые
         if (reels[0] == reels[1] || reels[0] == reels[2] || reels[1] == reels[2]) {
-            return spinPrice * 2;
+            return (spinPrice * 13) / 10; 
         }
         return 0;
     }

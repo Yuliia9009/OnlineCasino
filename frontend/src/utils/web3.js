@@ -1,63 +1,236 @@
-import { ethers } from 'ethers'
-import { fetchHistory } from './api'
+import { ethers } from "ethers";
+import { fetchHistory as fetchHistoryFromApi, apiConfirmSpin } from "./api";
+import SlotMachine from "../abi/SlotMachine.json";
 
-let provider = null
-let signer = null
-let currentAddress = null
+/* ========= Константи ========= */
+export const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS;
+export const CONTRACT_ABI = SlotMachine.abi;
+export const EXPECTED_CHAIN_ID = Number(import.meta.env.VITE_CHAIN_ID || 31337); // 31337 = Hardhat
 
-export const CONTRACT_ADDRESS = '0x0000000000000000000000000000000000000000'
-export const CONTRACT_ABI = [ /* ... replace with actual ABI ... */ ]
-export const ADMINS = []
+// Адмін-адреси
+const RAW_ADMINS = (import.meta.env.VITE_ADMIN_ADDRESSES || "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
 
+export const ADMINS = RAW_ADMINS.map((a) => a.toLowerCase());
 export function isAdmin(address) {
-  if (!address) return false
-  return ADMINS.includes(address.toLowerCase())
+  return !!address && ADMINS.includes(address.toLowerCase());
 }
 
-export async function connectWallet() {
-  if (!window.ethereum) throw new Error('No MetaMask')
-  provider = new ethers.BrowserProvider(window.ethereum)
-  await provider.send('eth_requestAccounts', [])
-  signer = await provider.getSigner()
-  currentAddress = await signer.getAddress()
-  return currentAddress
-}
+/* ========= Внутрішнє состояние ========= */
+let provider = null;
+let signer = null;
 
-export function onAccountChange(cb) {
-  if (window.ethereum) {
-    window.ethereum.on('accountsChanged', (accounts) => {
-      if (accounts.length === 0) cb(null)
-      else cb(accounts[0])
-    })
+/* ========= Хелперы сети/контракта ========= */
+async function switchToExpectedChain(p) {
+  const targetHex = "0x" + EXPECTED_CHAIN_ID.toString(16);
+  const currentHex = await p.send("eth_chainId", []);
+  if (currentHex === targetHex) return;
+
+  try {
+    await p.send("wallet_switchEthereumChain", [{ chainId: targetHex }]);
+  } catch (e) {
+    if (e.code === 4902) {
+      await p.send("wallet_addEthereumChain", [{
+        chainId: targetHex,
+        chainName: "Hardhat Localhost",
+        rpcUrls: ["http://127.0.0.1:8545"],
+        nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
+      }]);
+    } else {
+      throw e;
+    }
   }
 }
 
-export async function getBalance(address) {
-  // if contract exists, query it. For now return mock
-  return (Math.random() * 2).toFixed(5)
+async function assertDeployed(p) {
+  if (!CONTRACT_ADDRESS) throw new Error("Missing VITE_CONTRACT_ADDRESS");
+  let code = "0x";
+  try {
+    if (typeof p.getCode === "function") {
+      code = await p.getCode(CONTRACT_ADDRESS);
+    } else {
+      code = await p.send("eth_getCode", [CONTRACT_ADDRESS, "latest"]);
+    }
+  } catch {
+    code = await p.send("eth_getCode", [CONTRACT_ADDRESS, "latest"]);
+  }
+  if (!code || code === "0x") {
+    throw new Error(
+      `No contract code at ${CONTRACT_ADDRESS} on chain ${EXPECTED_CHAIN_ID}. ` +
+      `Re-deploy and update VITE_CONTRACT_ADDRESS.`
+    );
+  }
 }
 
+async function getContract(readonly = false) {
+  if (!window.ethereum) throw new Error("No MetaMask");
+  provider ||= new ethers.BrowserProvider(window.ethereum);
+
+  await switchToExpectedChain(provider);
+  await assertDeployed(provider);
+
+  if (readonly) return new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
+  signer ||= await provider.getSigner();
+  return new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+}
+
+/* ========= API ========= */
+
+export async function connectWallet() {
+  if (!window.ethereum) throw new Error("No MetaMask");
+  provider = new ethers.BrowserProvider(window.ethereum);
+  await provider.send("eth_requestAccounts", []);
+
+  await switchToExpectedChain(provider);
+  await assertDeployed(provider);
+
+  signer = await provider.getSigner();
+  return await signer.getAddress();
+}
+
+// Цена спіна з контракта
+export async function getSpinPrice() {
+  const c = await getContract(true);
+  const wei = await c.spinPrice();
+  return ethers.formatEther(wei);
+}
+
+// Внутрішнній баланс гравця в контракті
+export async function getBalance(address) {
+  const c = await getContract(true);
+  const wei = await c.balances(address);
+  return ethers.formatEther(wei);
+}
+
+// Історія — через бекенд 
 export async function getHistory(address) {
-  return fetchHistory(address)
+  return fetchHistoryFromApi(address, EXPECTED_CHAIN_ID);
+}
+
+// Поповнення — в контракт 
+export async function deposit(amountEth) {
+  const c = await getContract();
+  const value = ethers.parseEther(String(amountEth));
+  const tx = await c.deposit({ value });
+  await tx.wait();
+  return { status: "ok", txHash: tx.hash };
+}
+
+// Вивід з внутрішнього баланса контракта
+export async function withdraw(amountEth) {
+  const c = await getContract();
+  const amount = ethers.parseEther(String(amountEth));
+  const tx = await c.withdraw(amount);
+  await tx.wait();
+  return { status: "ok", txHash: tx.hash };
+}
+
+/* ========= Spin ========= */
+
+function extractRevertMessage(e) {
+  try {
+    const m = e?.error?.message || e?.data?.message || e?.message || "";
+    const known = m.match(/revert(?:ed)?:?\s*(.+)$/i);
+    return known ? known[1] : m;
+  } catch {
+    return "Transaction reverted";
+  }
 }
 
 export async function spinSlot() {
-  // If contract is deployed, call contract.spin({ value: ... }) using signer
-  // For now we return a deterministic random mock
-  const symbols = ['🍒','🍋','🍊','⭐','7️⃣']
-  const res = Array.from({length:3}, () => symbols[Math.floor(Math.random()*symbols.length)])
-  const win = (res[0] === res[1] && res[1] === res[2]) ? (Math.random() * 0.1).toFixed(5) : '0'
-  return { result: res, win }
+  const c = await getContract();
+
+  // 0) перевірка для газу
+  try {
+    const addr = signer ? await signer.getAddress() : (await c.runner.getAddress());
+    const extBal = await c.runner.provider.getBalance(addr);
+    if (extBal === 0n) {
+      throw new Error("На гаманці немає ETH для оплати gas.");
+    }
+  } catch (_) { /* игнор */ }
+
+  // 1) eth_call — спіймати revert до вікна MetaMask
+  try {
+    await c.play.staticCall();
+  } catch (e) {
+    throw new Error(extractRevertMessage(e));
+  }
+
+  // 2) газ з запасом
+  let gasLimit;
+  try {
+    const est = await c.play.estimateGas();
+    gasLimit = (est * 125n) / 100n; // +25%
+  } catch (_) {
+    gasLimit = 300000n;
+  }
+
+  // 3) Відправка транзакцій
+  try {
+    const tx = await c.play({ gasLimit });
+    const receipt = await tx.wait();
+
+    let parsedReels = null;
+    let parsedWin = null;
+    try {
+      const iface = new ethers.Interface(CONTRACT_ABI);
+      for (const log of receipt.logs || []) {
+        try {
+          const ev = iface.parseLog(log);
+          if (ev && ev.name === "SpinPlayed") {
+            const reels = Array.isArray(ev.args?.reels) ? ev.args.reels.map((x) => Number(x)) : null;
+            const win = ev.args?.winAmount != null ? ethers.formatEther(ev.args.winAmount) : null;
+            parsedReels = reels;
+            parsedWin = win;
+            break;
+          }
+        } catch {}
+      }
+    } catch {}
+
+    try {
+      const addr = signer ? await signer.getAddress() : null;
+      await apiConfirmSpin({
+        txHash: tx.hash,
+        address: addr || undefined,
+        chainId: EXPECTED_CHAIN_ID,
+      });
+    } catch (e2) {
+      console.warn("[spin] confirm failed:", e2?.message || e2);
+    }
+
+    let resultEmojis = null;
+    if (parsedReels) {
+      const EMOJIS = ["🍒", "🍋", "🍊", "⭐", "7️⃣"];
+      resultEmojis = parsedReels.map((i) => EMOJIS[i] ?? "❓");
+    }
+
+    return {
+      status: "ok",
+      txHash: tx.hash,
+      receipt,
+      ...(resultEmojis ? { result: resultEmojis } : {}),
+      ...(parsedWin != null ? { win: parsedWin } : {}),
+    };
+  } catch (e) {
+    const msg = extractRevertMessage(e);
+    if (/replacement fee too low|nonce/i.test(msg)) {
+      throw new Error("Tx відхилено гаманцем (nonce/fee). Спробуйте ще раз.");
+    }
+    if (/User denied|rejected/i.test(msg)) {
+      throw new Error("Транзакцію відхилено у MetaMask.");
+    }
+    throw new Error(msg || "Помилка надсилання транзакції");
+  }
 }
 
-export async function deposit(amount) {
-  // call contract or backend
-  // mock a delay
-  await new Promise(r => setTimeout(r, 800))
-  return { status: 'ok' }
-}
-
-export async function withdraw(amount) {
-  await new Promise(r => setTimeout(r, 800))
-  return { status: 'ok' }
+/* ========= Підписка ========= */
+export function onAccountChange(cb) {
+  if (window.ethereum) {
+    window.ethereum.on("accountsChanged", (accounts) => {
+      cb(accounts.length ? accounts[0] : null);
+    });
+  }
 }

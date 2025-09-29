@@ -1,0 +1,20 @@
+{
+  "name": "contracts",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "build": "hardhat compile",
+    "node": "hardhat node",
+    "deploy:local": "hardhat run scripts/deploy.js --network localhost",
+    "deploy:hardhat": "hardhat run scripts/deploy.js --network hardhat"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^6.1.0",
+    "dotenv": "^16.4.5",
+    "hardhat": "^2.26.0"
+  },
+  "description": ""
+}

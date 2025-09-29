@@ -7,27 +7,42 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model api_logs {
-  id           BigInt         @id @default(autoincrement()) @db.UnsignedBigInt
-  level        api_logs_level @default(info)
-  source       String         @db.VarChar(64)
-  message      String         @db.VarChar(512)
-  context_json Json?
-  created_at   DateTime       @default(now()) @db.Timestamp(0)
-
-  @@index([level, created_at], map: "idx_logs_level_time")
+/* ---------- ENUMS ---------- */
+enum deposits_status {
+  ok
+  failed
 }
 
-model bank_snapshots {
-  id                   BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
-  contract_balance_wei String   @db.VarChar(78)
-  chain_id             BigInt   @db.UnsignedBigInt
-  block_number         BigInt   @db.UnsignedBigInt
-  timestamp_utc        DateTime @db.DateTime(0)
-  created_at           DateTime @default(now()) @db.Timestamp(0)
+enum withdrawals_status {
+  ok
+  failed
+  pending
+}
 
-  @@index([chain_id, block_number], map: "idx_bank_chain_block")
-  @@index([timestamp_utc], map: "idx_bank_time")
+enum api_logs_level {
+  info
+  warn
+  error
+}
+
+/* ---------- MODELS ---------- */
+
+model players {
+  id                  BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  address_checksum    String   @db.Char(42)
+  address_norm        String?  @db.Char(42)
+  chain_id            BigInt   @db.UnsignedBigInt @default(31337)
+  total_spins         BigInt   @db.UnsignedBigInt @default(0)
+  total_deposited_wei String   @db.VarChar(78) @default("0")
+  total_bet_wei       String   @db.VarChar(78) @default("0")
+  total_payout_wei    String   @db.VarChar(78) @default("0")
+  total_withdrawn_wei String   @db.VarChar(78) @default("0")
+  net_wei             String   @db.VarChar(78) @default("0")
+  created_at          DateTime @default(now()) @db.Timestamp(0)
+  updated_at          DateTime @default(now()) @db.Timestamp(0)
+
+  @@unique([address_norm, chain_id], map: "uq_player_addr_chain")
+  @@index([updated_at], map: "idx_player_updated")
 }
 
 model deposits {
@@ -45,24 +60,6 @@ model deposits {
   @@unique([tx_hash, chain_id], map: "uq_deposit_tx")
   @@index([block_number], map: "idx_deposit_block")
   @@index([player_address_norm, chain_id, timestamp_utc], map: "idx_deposit_player")
-}
-
-model players {
-  id                  BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
-  address_checksum    String   @db.Char(42)
-  address_norm        String?  @db.Char(42)
-  chain_id            BigInt   @default(11155111) @db.UnsignedBigInt
-  total_spins         BigInt   @default(0) @db.UnsignedBigInt
-  total_deposited_wei String   @default("0") @db.VarChar(78)
-  total_bet_wei       String   @default("0") @db.VarChar(78)
-  total_payout_wei    String   @default("0") @db.VarChar(78)
-  total_withdrawn_wei String   @default("0") @db.VarChar(78)
-  net_wei             String   @default("0") @db.VarChar(78)
-  created_at          DateTime @default(now()) @db.Timestamp(0)
-  updated_at          DateTime @default(now()) @db.Timestamp(0)
-
-  @@unique([address_norm, chain_id], map: "uq_player_addr_chain")
-  @@index([updated_at], map: "idx_player_updated")
 }
 
 model spins {
@@ -103,26 +100,21 @@ model withdrawals {
   @@index([player_address_norm, chain_id, timestamp_utc], map: "idx_withdraw_player")
 }
 
-enum api_logs_level {
-  info
-  warn
-  error
-}
+model bank_snapshots {
+  id                   BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  contract_balance_wei String   @db.VarChar(78)
+  chain_id             BigInt   @db.UnsignedBigInt
+  block_number         BigInt   @db.UnsignedBigInt
+  timestamp_utc        DateTime @db.DateTime(0)
+  created_at           DateTime @default(now()) @db.Timestamp(0)
 
-enum withdrawals_status {
-  ok
-  failed
-  pending
-}
-
-enum deposits_status {
-  ok
-  failed
+  @@index([chain_id, block_number], map: "idx_bank_chain_block")
+  @@index([timestamp_utc], map: "idx_bank_time")
 }
 
 model sessions {
-  id               String   @id @db.VarChar(128)         // sid (uuid/random)
-  address_norm     String   @db.VarChar(42)              // 0x.. (lowercase)
+  id               String   @id @db.VarChar(128)
+  address_norm     String   @db.VarChar(42)
   address_checksum String   @db.VarChar(42)
   created_at       DateTime @default(now())
   expires_at       DateTime
@@ -135,22 +127,37 @@ model sessions {
 }
 
 model auth_nonces {
-  nonce       String   @id @db.VarChar(128)
-  address_norm String? @db.VarChar(42)                   // можно привязывать к адресу (опц)
-  created_at  DateTime @default(now())
-  expires_at  DateTime
-  used        Boolean  @default(false)
+  nonce        String   @id @db.VarChar(128)
+  address_norm String?  @db.VarChar(42)
+  created_at   DateTime @default(now())
+  expires_at   DateTime
+  used         Boolean  @default(false)
 
   @@index([expires_at, used])
 }
 
+/* ---------- LOG MODELS ---------- */
+
+/// бизнес-логи (spins.confirm / cron / listener)
 model api_logs {
+  id           BigInt         @id @default(autoincrement()) @db.UnsignedBigInt
+  level        api_logs_level @default(info)
+  source       String         @db.VarChar(64)
+  message      String         @db.VarChar(512)
+  context_json Json?
+  created_at   DateTime       @default(now()) @db.Timestamp(0)
+
+  @@index([level, created_at], map: "idx_logs_level_time")
+}
+
+/// http-запросы (если надо хранить)
+model http_logs {
   id         BigInt   @id @default(autoincrement())
-  level      String   @db.VarChar(16)                    // info|warn|error
+  level      String   @db.VarChar(16)
   message    String   @db.VarChar(255)
   path       String?  @db.VarChar(255)
   method     String?  @db.VarChar(16)
   address    String?  @db.VarChar(42)
   meta       String?  @db.Text
   created_at DateTime @default(now())
-}
+} 

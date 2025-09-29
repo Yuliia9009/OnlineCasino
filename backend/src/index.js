@@ -1,53 +1,85 @@
-import cookieParser from "cookie-parser";
-import authRoutes from "./routes/auth.js";
+// src/index.js
+import dotenv from "dotenv";
+dotenv.config();
 
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import morgan from "morgan";
-import dotenv from "dotenv";
-import logger from "./utils/logger.js";
+import cookieParser from "cookie-parser";
+import { readFileSync } from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 
+import logger from "./utils/logger.js";
+import prisma from "./db.js";
+
+import authRoutes from "./routes/auth.js";
 import spinsRoutes from "./routes/spins.js";
 import playersRoutes from "./routes/players.js";
 import statsRoutes from "./routes/stats.js";
 import depositsRoutes from "./routes/deposits.js";
 import withdrawalsRoutes from "./routes/withdrawals.js";
 
-dotenv.config();
+import feedRoutes from "./routes/feed.js";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const pkg = JSON.parse(
+  readFileSync(path.join(__dirname, "../package.json"), "utf8")
+);
 
 const app = express();
 const PORT = Number(process.env.PORT || 4000);
 const NODE_ENV = process.env.NODE_ENV || "development";
 
-/* ---------- security ---------- */
-app.use(helmet()); // базовые security-заголовки
-app.use(cookieParser()); // парсинг куки
+const TRUST_PROXY = String(process.env.TRUST_PROXY || "").toLowerCase() === "true";
+if (TRUST_PROXY) {
+  app.set("trust proxy", 1);
+}
 
-// rate limit (в dev отключить 0, в prod – включить - 1000 запросов с одного IP в 15 мин)
+/* ---------- security ---------- */
+app.use(helmet({
+  crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
+  crossOriginResourcePolicy: false,
+}));
+app.use(cookieParser());
+
+/* ---------- CORS ---------- */
+const ORIGIN = process.env.CORS_ORIGIN || "http://localhost:5173";
+app.use(cors({
+  origin: ORIGIN,
+  credentials: true,
+}));
+
+// Global preflight (some clients send OPTIONS explicitly)
+app.options(/.*/, cors({ origin: ORIGIN, credentials: true }));
+
+/* ---------- body parser ---------- */
+app.use(express.json({ limit: "1mb" }));
+
+// JSON parse error guard (returns 400 instead of crashing)
+app.use((err, _req, res, next) => {
+  if (err instanceof SyntaxError && "body" in err) {
+    return res.status(400).json({ ok: false, error: "bad_json", message: err.message });
+  }
+  next(err);
+});
+
+/* ---------- HTTP -> pino ---------- */
+const morganStream = { write: (msg) => logger.info(msg.trim()) };
+app.use(morgan("tiny", { stream: morganStream }));
+
+/* ---------- rate limit (в prod) ---------- */
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 мин
-  max: NODE_ENV === "production" ? 1000 : 0, // 0 = без лимита в dev
+  windowMs: 15 * 60 * 1000,
+  max: NODE_ENV === "production" ? 1000 : 0,
   standardHeaders: true,
   legacyHeaders: false,
 });
 if (NODE_ENV === "production") app.use(limiter);
 
-/* ---------- базовые middlewares ---------- */
-app.use(
-  cors({
-    origin: process.env.CORS_ORIGIN || "*", // домен фронта
-    credentials: false,
-  })
-);
-app.use(express.json({ limit: "1mb" }));
-
-// направляем HTTP-логи morgan в pino
-const morganStream = { write: (msg) => logger.info(msg.trim()) };
-app.use(morgan("tiny", { stream: morganStream }));
-
-// детальный лог входящих запросов (только в dev)
+/* ---------- подробный лог в консоль (dev) ---------- */
 if (NODE_ENV !== "production") {
   app.use((req, _res, next) => {
     logger.debug(
@@ -58,33 +90,62 @@ if (NODE_ENV !== "production") {
   });
 }
 
-// маршруты аутентификации
+/* ---------- dev-логгер запросов в БД (http_logs) ---------- */
+/* ВАЖНО: этот мидлвар ставим после express.json, чтобы body уже был распарсен */
+if (NODE_ENV !== "production") {
+  app.use(async (req, _res, next) => {
+    try {
+      await prisma.http_logs.create({
+        data: {
+          level: "info",
+          message: "HTTP request",
+          path: req.originalUrl || req.url,
+          method: req.method,
+          address: req.ip || null,
+          // ограничим размер, чтобы не переполнить колонку
+          meta: JSON.stringify({ query: req.query, body: req.body }).slice(0, 60000),
+        },
+      });
+    } catch {
+      // молча игнорим ошибки логгера, чтобы не ломать основной запрос
+    }
+    next();
+  });
+}
+
+/* ---------- маршруты ---------- */
 app.use("/auth", authRoutes);
 
-// лог исходящих ответов (статус + время)
-app.use((req, res, next) => {
-  const start = Date.now();
-  res.on("finish", () => {
-    const ms = Date.now() - start;
-    logger.info(
-      { method: req.method, url: req.originalUrl, status: res.statusCode, durationMs: ms },
-      "⬅️  response"
-    );
-  });
-  next();
+// lightweight diagnostics
+app.get("/version", (_req, res) => {
+  res.json({ ok: true, name: pkg.name, version: pkg.version, env: NODE_ENV });
+});
+app.get("/ready", async (_req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({ ok: true });
+  } catch (e) {
+    logger.error(e, "readiness_check_failed");
+    res.status(500).json({ ok: false, error: "db_unavailable" });
+  }
 });
 
-/* ---------- health ---------- */
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
-/* ---------- API маршруты ---------- */
 app.use("/api/spins", spinsRoutes);
 app.use("/api/players", playersRoutes);
 app.use("/api/stats", statsRoutes);
 app.use("/api/deposits", depositsRoutes);
 app.use("/api/withdrawals", withdrawalsRoutes);
+app.use("/api/feed", feedRoutes);
 
-/* ---------- 404 для неизвестных маршрутов ---------- */
+/* Алиасы под фронт */
+app.get("/api/history", (req, res) => {
+  const address = req.query.address || "";
+  res.redirect(307, `/api/spins?address=${encodeURIComponent(address)}`);
+});
+
+/* ---------- 404 ---------- */
 app.use((req, res) => {
   logger.warn({ path: req.originalUrl, method: req.method }, "route_not_found");
   res.status(404).json({ ok: false, error: "not_found" });
@@ -98,17 +159,16 @@ app.use((err, _req, res, _next) => {
   res.status(status).json({ ok: false, error: code, message: err.message });
 });
 
-/* ---------- graceful shutdown ---------- */
+/* ---------- старт и graceful shutdown ---------- */
 const server = app.listen(PORT, () => {
-  logger.info({ port: PORT, env: NODE_ENV }, "✅ Backend API running");
+  logger.info({ port: PORT, env: NODE_ENV, corsOrigin: ORIGIN }, "✅ Backend API running");
 });
 
 async function shutdown(sig) {
   try {
     logger.info({ sig }, "shutting_down");
     server.close(() => logger.info("http server closed"));
-    // если используем prisma:
-    // await prisma.$disconnect().catch(() => {});
+    await prisma.$disconnect().catch(() => {});
   } catch (e) {
     logger.error(e, "shutdown_error");
   } finally {

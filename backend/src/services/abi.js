@@ -1,16 +1,22 @@
+// backend/src/services/abi.js
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const abiJson = JSON.parse(
-  fs.readFileSync(path.join(__dirname, "../abi/SlotMachine.json"), "utf8")
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Путь от backend/src/services → до OnlineCasino/contracts/artifacts/...
+// services → src → backend → OnlineCasino → contracts
+const ARTIFACT_PATH = path.resolve(
+  __dirname,
+  "../../../contracts/artifacts/contracts/SlotMachine.sol/SlotMachine.json"
 );
 
-// Если файл содержит { "abi": [...] }
-export const SLOT_ABI = abiJson.abi || abiJson;
+// Прочитаем артефакт Hardhat и возьмём abi
+const artifact = JSON.parse(fs.readFileSync(ARTIFACT_PATH, "utf8"));
+if (!artifact?.abi || !Array.isArray(artifact.abi) || artifact.abi.length === 0) {
+  throw new Error(`ABI not found in artifact at ${ARTIFACT_PATH}`);
+}
 
-// Временная заглушка: 
-export const abi = [
-  /* JSON ABI от Димы */
-];
+export const SLOT_ABI = artifact.abi;

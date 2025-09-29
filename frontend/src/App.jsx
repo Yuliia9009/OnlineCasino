@@ -8,49 +8,84 @@ import Feed from './pages/Feed'
 import Admin from './pages/Admin'
 import Navbar from './components/Navbar'
 import AdminRoute from './components/AdminRoute'
-import { connectWallet, onAccountChange } from './utils/web3'
+import { connectWallet, onAccountChange, isAdmin } from './utils/web3'
 
 
 export default function App() {
-const [address, setAddress] = useState(null)
-const navigate = useNavigate()
+  const [address, setAddress] = useState(null)
+  const navigate = useNavigate()
 
 
-useEffect(() => {
-// handle account change (MetaMask)
-onAccountChange((addr) => {
-setAddress(addr)
-if (!addr) navigate('/')
-})
-}, [])
+  useEffect(() => {
+    onAccountChange((addr) => {
+      setAddress(addr);
+      const path = window.location.pathname;
+
+      if (!addr) {
+        navigate('/');
+        return;
+      }
+
+      if (isAdmin(addr) && (path === '/' || path === '')) {
+        navigate('/admin');
+        return;
+      }
+
+      if (path.startsWith('/admin') && !isAdmin(addr)) {
+        alert('У вас немає прав доступу до адмін-панелі.');
+        navigate('/');
+      }
+    });
+  }, [navigate]);
 
 
-return (
-<div className="min-h-screen flex flex-col">
-<Navbar address={address} onConnect={async () => {
-const a = await connectWallet()
-setAddress(a)
-navigate('/cabinet')
-}} />
+  return (
+    <div className="min-h-screen flex flex-col">
+      <Navbar address={address} onConnect={async () => {
+        const a = await connectWallet();
+        setAddress(a);
+
+        if (isAdmin(a)) {
+          navigate('/admin');
+        } else {
+          navigate('/cabinet');
+        }
+      }} />
 
 
-<main className="flex-1 container mx-auto px-4 py-6">
-<Routes>
-  <Route path="/" element={<Login onConnect={async () => { const a = await connectWallet(); setAddress(a); navigate('/cabinet') }} />} />
-  <Route path="/cabinet" element={<Cabinet address={address} />} />
-  <Route path="/deposit" element={<Deposit address={address} />} />
-  <Route path="/withdraw" element={<Withdraw address={address} />} />
-  <Route path="/feed" element={<Feed />} />
-  <Route path="/admin/*" element={
-    <AdminRoute address={address}>
-      <Admin />
-    </AdminRoute>
-  } />
-</Routes>
-</main>
+      <main className="flex-1 container mx-auto px-4 py-6">
+        <Routes>
+          <Route
+            path="/"
+            element={
+              <Login
+                onConnect={async () => {
+                  const a = await connectWallet();
+                  setAddress(a);
+
+                  if (isAdmin(a)) {
+                    navigate('/admin');
+                  } else {
+                    navigate('/cabinet');
+                  }
+                }}
+              />
+            }
+          />
+          <Route path="/cabinet" element={<Cabinet address={address} />} />
+          <Route path="/deposit" element={<Deposit address={address} />} />
+          <Route path="/withdraw" element={<Withdraw address={address} />} />
+          <Route path="/feed" element={<Feed />} />
+          <Route path="/admin/*" element={
+            <AdminRoute address={address}>
+              <Admin address={address} />
+            </AdminRoute>
+          } />
+        </Routes>
+      </main>
 
 
-<footer className="bg-gray-800 text-gray-400 text-center py-3">Спробуй удачу!</footer>
-</div>
-)
+      <footer className="bg-gray-800 text-gray-400 text-center py-3">Спробуй удачу!</footer>
+    </div>
+  )
 }

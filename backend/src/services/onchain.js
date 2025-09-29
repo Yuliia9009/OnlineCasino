@@ -2,7 +2,7 @@ import { ethers } from "ethers";
 import { SLOT_ABI } from "./abi.js";
 import logger from "../utils/logger.js";
 
-// простой кэш интерфейса, чтобы не пересоздавать на каждый запрос
+// кэш интерфейса ABI
 let _iface = null;
 function getIface() {
   if (!_iface) _iface = new ethers.Interface(SLOT_ABI);
@@ -21,16 +21,24 @@ export function makeClients({ rpcUrl, contract }) {
     err.code = "config_missing";
     throw err;
   }
-
   const provider = new ethers.JsonRpcProvider(rpcUrl);
   const iface = getIface();
-  const contractAddr = ethers.getAddress(contract);
+
+  // приведём адрес к checksum и сразу кинем понятную ошибку при кривом адресе
+  let contractAddr;
+  try {
+    contractAddr = ethers.getAddress(contract);
+  } catch {
+    const err = new Error("bad_contract_address");
+    err.code = "config_bad_address";
+    throw err;
+  }
 
   logger.debug({ rpcUrl, contractAddr }, "onchain.makeClients: created");
   return { provider, iface, contractAddr };
 }
 
-/** Получить timestamp блока в миллисекундах */
+/** timestamp блока в миллисекундах */
 async function getBlockTimestampMs(provider, blockNumber) {
   const block = await provider.getBlock(blockNumber);
   if (!block) {
@@ -41,18 +49,29 @@ async function getBlockTimestampMs(provider, blockNumber) {
   return Number(block.timestamp) * 1000;
 }
 
-/** Найти лог по названию события */
+/** найти лог по названию события */
 function findLogByEvent({ receipt, iface, contractAddr, eventName }) {
   const ev = iface.getEvent(eventName);
   const topic0 = ev.topicHash;
-
-  const log = receipt.logs?.find(
-    (l) => l.address?.toLowerCase() === contractAddr.toLowerCase() && l.topics?.[0] === topic0
+  return (
+    receipt.logs?.find(
+      (l) =>
+        l.address?.toLowerCase() === contractAddr.toLowerCase() &&
+        l.topics?.[0] === topic0
+    ) ?? null
   );
-  return log ?? null;
 }
 
-/** Общая обвязка: подтянуть receipt (с опциональным ожиданием подтверждений) */
+/** найти первый лог по любому из нескольких событий */
+function findLogByAnyEvent({ receipt, iface, contractAddr, eventNames = [] }) {
+  for (const name of eventNames) {
+    const log = findLogByEvent({ receipt, iface, contractAddr, eventName: name });
+    if (log) return { log, name };
+  }
+  return { log: null, name: null };
+}
+
+/** подтянуть receipt (с ожиданием подтверждений при необходимости) */
 async function getReceiptWithConfirmations(provider, txHash, confirmations = 0) {
   logger.debug({ txHash, confirmations }, "onchain.getReceipt: fetching");
   const receipt = await provider.getTransactionReceipt(txHash);
@@ -75,12 +94,18 @@ async function getReceiptWithConfirmations(provider, txHash, confirmations = 0) 
 }
 
 /**
- * Парсер SpinResult
- * Ожидаем в ABI:
- *   event SpinResult(address player, uint256 bet, uint256 payout, uint256[3] reels, uint256 rnd);
- * Допускаем синонимы полей.
+ * Парсер спина.
+ * Поддерживает оба варианта:
+ *  - SpinPlayed(address player, uint bet, uint[3] reels, uint winAmount, ...)
+ *  - SpinResult(address player, uint bet, uint payout, uint[3] reels, ...)
  */
-export async function parseSpinFromTx({ provider, iface, contractAddr, txHash, confirmations = 0 }) {
+export async function parseSpinFromTx({
+  provider,
+  iface,
+  contractAddr,
+  txHash,
+  confirmations = 0,
+}) {
   if (!/^0x[0-9a-fA-F]{64}$/.test(txHash)) {
     const err = new Error("bad_tx_hash");
     err.code = "bad_tx_hash";
@@ -88,7 +113,14 @@ export async function parseSpinFromTx({ provider, iface, contractAddr, txHash, c
   }
 
   const receipt = await getReceiptWithConfirmations(provider, txHash, confirmations);
-  const log = findLogByEvent({ receipt, iface, contractAddr, eventName: "SpinResult" });
+
+  // Попробуем найти событие по любому имени
+  const { log, name } = findLogByAnyEvent({
+    receipt,
+    iface,
+    contractAddr,
+    eventNames: ["SpinPlayed", "SpinResult"],
+  });
   if (!log) {
     const err = new Error("spin_event_not_found");
     err.code = "event_not_found";
@@ -98,41 +130,75 @@ export async function parseSpinFromTx({ provider, iface, contractAddr, txHash, c
   const parsed = iface.parseLog({ topics: log.topics, data: log.data });
   const a = parsed.args;
 
+  // адрес игрока
   const playerChecksum = String(a.player);
   const player = playerChecksum.toLowerCase();
 
-  const betWei = a.bet?.toString?.() ?? a.betWei?.toString?.() ?? "0";
-  const payoutWei = a.payout?.toString?.() ?? a.payoutWei?.toString?.() ?? "0";
+  // ставка
+  const betWei =
+    a.bet !== undefined
+      ? String(a.bet)
+      : a.betWei !== undefined
+      ? String(a.betWei)
+      : a.amountBet !== undefined
+      ? String(a.amountBet)
+      : "0";
 
+  // выплата: в SpinPlayed поле называется winAmount, в SpinResult — payout
+  const payoutWei =
+    a.winAmount !== undefined
+      ? String(a.winAmount)
+      : a.payout !== undefined
+      ? String(a.payout)
+      : a.payoutWei !== undefined
+      ? String(a.payoutWei)
+      : "0";
+
+  // барабаны
   let reels = [];
   if (Array.isArray(a.reels)) {
     reels = Array.from(a.reels, (x) => Number(x));
-  } else if (a.reel_1 !== undefined && a.reel_2 !== undefined && a.reel_3 !== undefined) {
+  } else if (
+    a.reel_1 !== undefined &&
+    a.reel_2 !== undefined &&
+    a.reel_3 !== undefined
+  ) {
     reels = [Number(a.reel_1), Number(a.reel_2), Number(a.reel_3)];
   }
 
-  const rnd = a.rnd?.toString?.() ?? null;
+  // дополнительные поля, если есть (rnd/timestamp и т.п.) — не критично
+  const rnd = a.rnd !== undefined ? String(a.rnd) : null;
 
   const blockNumber = Number(receipt.blockNumber);
   const timestampMs = await getBlockTimestampMs(provider, blockNumber);
 
-  logger.info({ txHash, player, blockNumber }, "onchain.parseSpin: parsed");
+  logger.info(
+    { txHash, player, blockNumber, betWei, payoutWei, event: name },
+    "onchain.parseSpin: parsed"
+  );
   return {
     kind: "spin",
-    txHash: receipt.transactionHash,
+    event: name,
+    txHash: String(receipt.transactionHash),
     blockNumber,
     timestampMs,
     player,
     playerChecksum,
-    betWei: String(betWei),
-    payoutWei: String(payoutWei),
+    betWei,
+    payoutWei,
     reels,
     rnd,
   };
 }
 
 /** Парсер Deposit(address player, uint256 amount) */
-export async function parseDepositFromTx({ provider, iface, contractAddr, txHash, confirmations = 0 }) {
+export async function parseDepositFromTx({
+  provider,
+  iface,
+  contractAddr,
+  txHash,
+  confirmations = 0,
+}) {
   if (!/^0x[0-9a-fA-F]{64}$/.test(txHash)) {
     const err = new Error("bad_tx_hash");
     err.code = "bad_tx_hash";
@@ -152,7 +218,12 @@ export async function parseDepositFromTx({ provider, iface, contractAddr, txHash
 
   const playerChecksum = String(a.player);
   const player = playerChecksum.toLowerCase();
-  const amountWei = a.amount?.toString?.() ?? a.value?.toString?.() ?? "0";
+  const amountWei =
+    a.amount !== undefined
+      ? String(a.amount)
+      : a.value !== undefined
+      ? String(a.value)
+      : "0";
 
   const blockNumber = Number(receipt.blockNumber);
   const timestampMs = await getBlockTimestampMs(provider, blockNumber);
@@ -160,17 +231,23 @@ export async function parseDepositFromTx({ provider, iface, contractAddr, txHash
   logger.info({ txHash, player, blockNumber, amountWei }, "onchain.parseDeposit: parsed");
   return {
     kind: "deposit",
-    txHash: receipt.transactionHash,
+    txHash: String(receipt.transactionHash),
     blockNumber,
     timestampMs,
     player,
     playerChecksum,
-    amountWei: String(amountWei),
+    amountWei,
   };
 }
 
 /** Парсер Withdraw(address player, uint256 amount) */
-export async function parseWithdrawFromTx({ provider, iface, contractAddr, txHash, confirmations = 0 }) {
+export async function parseWithdrawFromTx({
+  provider,
+  iface,
+  contractAddr,
+  txHash,
+  confirmations = 0,
+}) {
   if (!/^0x[0-9a-fA-F]{64}$/.test(txHash)) {
     const err = new Error("bad_tx_hash");
     err.code = "bad_tx_hash";
@@ -190,7 +267,12 @@ export async function parseWithdrawFromTx({ provider, iface, contractAddr, txHas
 
   const playerChecksum = String(a.player);
   const player = playerChecksum.toLowerCase();
-  const amountWei = a.amount?.toString?.() ?? a.value?.toString?.() ?? "0";
+  const amountWei =
+    a.amount !== undefined
+      ? String(a.amount)
+      : a.value !== undefined
+      ? String(a.value)
+      : "0";
 
   const blockNumber = Number(receipt.blockNumber);
   const timestampMs = await getBlockTimestampMs(provider, blockNumber);
@@ -198,11 +280,11 @@ export async function parseWithdrawFromTx({ provider, iface, contractAddr, txHas
   logger.info({ txHash, player, blockNumber, amountWei }, "onchain.parseWithdraw: parsed");
   return {
     kind: "withdraw",
-    txHash: receipt.transactionHash,
+    txHash: String(receipt.transactionHash),
     blockNumber,
     timestampMs,
     player,
     playerChecksum,
-    amountWei: String(amountWei),
+    amountWei,
   };
 }

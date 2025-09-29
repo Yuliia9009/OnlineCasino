@@ -9,6 +9,21 @@ import { makeClients } from "../../services/onchain.js";
 import { SLOT_ABI } from "../../services/abi.js";
 import { Interface } from "ethers";
 
+import statsRoutes from "./routes/stats.js";
+import playersRoutes from "./routes/players.js";
+import spinsRoutes from "./routes/spins.js";
+import depositsRoutes from "./routes/deposits.js";
+import withdrawalsRoutes from "./routes/withdrawals.js";
+import feedRoutes from "./routes/feed.js";
+
+app.use("/api/feed", feedRoutes);
+
+app.use("/api/stats", statsRoutes);
+app.use("/api/players", playersRoutes);
+app.use("/api/spins", spinsRoutes);
+app.use("/api/deposits", depositsRoutes);
+app.use("/api/withdrawals", withdrawalsRoutes);
+
 // --- сеть по умолчанию (CHAIN_ID_DEFAULT из .env)
 const net = pickNetwork({ query: {}, body: {} }); // { chainId, rpcUrl, contract, confirmations }
 const { rpcUrl, contract, confirmations = 0 } = net;
@@ -20,22 +35,21 @@ const { provider, contractAddr } = (() => {
 })();
 
 const START_BLOCK = Number(process.env[`START_BLOCK_${net.chainId}`] || 0);
-const CHUNK_SIZE = Number(process.env.INDEXER_CHUNK_SIZE || 2_000); // сколько блоков за раз в backfill
-const POLL_INTERVAL_MS = Number(process.env.INDEXER_POLL_INTERVAL_MS || 8_000); // периодичность «догонки» головы
+const CHUNK_SIZE = Number(process.env.INDEXER_CHUNK_SIZE || 2_000);
+const POLL_INTERVAL_MS = Number(process.env.INDEXER_POLL_INTERVAL_MS || 8_000);
 
-/** утилита: безопасный insert c уникальным ключом (tx_hash+chain_id) */
+/** утилита: insert c уникальным ключом (tx_hash+chain_id) */
 async function saveEvent(kind, data) {
   try {
     if (kind === "Deposit") {
       await prisma.deposits.create({ data });
     } else if (kind === "Withdraw") {
       await prisma.withdrawals.create({ data });
-    } else if (kind === "SpinResult") {
+    } else if (kind === "SpinPlayed") {
       await prisma.spins.create({ data });
     }
     logger.info({ kind, tx: data.tx_hash }, "indexer: event saved");
   } catch (e) {
-    // дубликаты пропускаем (P2002 — unique violation)
     if (e?.code === "P2002") {
       logger.debug({ kind, tx: data.tx_hash }, "indexer: duplicate event (skip)");
       return;
@@ -52,18 +66,17 @@ async function handleLog(log) {
   try {
     parsed = iface.parseLog({ topics: log.topics, data: log.data });
   } catch {
-    return; // это не событие из нашего ABI
+    return; // не из нашего ABI
   }
 
   const name = parsed.name;
   const a = parsed.args;
 
-  // ждём нужных подтверждений: получим текущую голову и сравним
+  // подтверждения
   if (confirmations > 0) {
     const head = await provider.getBlockNumber();
     const got = Math.max(0, head - Number(log.blockNumber));
     if (got < confirmations) {
-      // мало подтверждений — пропустим сейчас, обработаем при следующем проходе/подписке
       logger.debug(
         { tx: log.transactionHash, need: confirmations, got },
         "indexer: not enough confirmations yet"
@@ -81,7 +94,7 @@ async function handleLog(log) {
       chain_id: net.chainId,
       player_address_norm: String(a.player).toLowerCase(),
       address_checksum: String(a.player),
-      amount_wei: (a.amount ?? a.value)?.toString?.() ?? "0",
+      amount_wei: a.amount?.toString?.() ?? "0",
       tx_hash: log.transactionHash,
       block_number: Number(log.blockNumber),
       timestamp_utc: new Date(tsMs),
@@ -92,19 +105,18 @@ async function handleLog(log) {
       chain_id: net.chainId,
       player_address_norm: String(a.player).toLowerCase(),
       address_checksum: String(a.player),
-      amount_wei: (a.amount ?? a.value)?.toString?.() ?? "0",
+      amount_wei: a.amount?.toString?.() ?? "0",
       tx_hash: log.transactionHash,
       block_number: Number(log.blockNumber),
       timestamp_utc: new Date(tsMs),
       status: "ok",
     });
-  } else if (name === "SpinResult") {
-    const betWei = a.bet?.toString?.() ?? a.betWei?.toString?.() ?? "0";
-    const payoutWei = a.payout?.toString?.() ?? a.payoutWei?.toString?.() ?? "0";
-    const reels = Array.isArray(a.reels)
-      ? Array.from(a.reels, (x) => Number(x))
-      : [Number(a.reel_1), Number(a.reel_2), Number(a.reel_3)];
-    await saveEvent("SpinResult", {
+  } else if (name === "SpinPlayed") {
+    const betWei = a.bet?.toString?.() ?? "0";
+    const payoutWei = a.winAmount?.toString?.() ?? "0";
+    const reels = Array.isArray(a.reels) ? Array.from(a.reels, Number) : [0, 0, 0];
+
+    await saveEvent("SpinPlayed", {
       chain_id: net.chainId,
       player_address_norm: String(a.player).toLowerCase(),
       address_checksum: String(a.player),
@@ -120,22 +132,16 @@ async function handleLog(log) {
   }
 }
 
-/** бэκфилл с диапазона блоков, порциями */
+/** бэκфилл */
 async function backfill(fromBlock) {
-  if (fromBlock <= 0) return;
+  if (fromBlock < 0) fromBlock = 0;
   const latest = await provider.getBlockNumber();
   let start = fromBlock;
-  logger.info({ fromBlock, latest }, "indexer: backfill start");
+  logger.info({ fromBlock: start, latest }, "indexer: backfill start");
 
   while (start <= latest) {
     const to = Math.min(start + CHUNK_SIZE - 1, latest);
-
-    const filter = {
-      address: contractAddr,
-      fromBlock: start,
-      toBlock: to,
-      topics: [], // все события контракта
-    };
+    const filter = { address: contractAddr, fromBlock: start, toBlock: to };
 
     try {
       const logs = await provider.getLogs(filter);
@@ -149,7 +155,6 @@ async function backfill(fromBlock) {
       }
     } catch (e) {
       logger.error({ from: start, to }, "indexer: getLogs failed");
-      // небольшая пауза и повтор следующего чанка
       await new Promise((r) => setTimeout(r, 1500));
     }
 
@@ -159,9 +164,8 @@ async function backfill(fromBlock) {
   logger.info("indexer: backfill done");
 }
 
-/** подписка на новые логи (stream) */
+/** подписка на новые события */
 function subscribe() {
-  // ethers v6 умеет фильтр по адресу (без topics) — получим все события контракта
   const filter = { address: contractAddr };
   provider.on(filter, async (log) => {
     try {
@@ -173,23 +177,20 @@ function subscribe() {
   logger.info({ chainId: net.chainId, contract: contractAddr }, "indexer: subscribed");
 }
 
-/** периодический догон головы (на случай пропусков в стриме) */
+/** периодический догон головы */
 function startPoller() {
   let lastChecked = 0;
 
   const tick = async () => {
     try {
       const head = await provider.getBlockNumber();
-      if (lastChecked === 0) lastChecked = head;
+      if (lastChecked === 0) {
+        lastChecked = START_BLOCK > 0 ? START_BLOCK - 1 : head;
+      }
 
-      // если голова ушла дальше — подсосём пропущенные блоки
       if (head > lastChecked) {
-        const from = Math.max(START_BLOCK || head, lastChecked + 1);
-        const to = head;
-        if (to >= from) {
-          logger.debug({ from, to }, "indexer: poller gap fill");
-          await backfill(from);
-        }
+        const from = lastChecked + 1;
+        await backfill(from);
         lastChecked = head;
       }
     } catch (e) {
@@ -221,9 +222,12 @@ function setupShutdown() {
 /** bootstrap */
 (async () => {
   try {
-    logger.info({ chainId: net.chainId, rpcUrl, contract: contractAddr, confirmations }, "indexer: boot");
+    logger.info(
+      { chainId: net.chainId, rpcUrl, contract: contractAddr, confirmations },
+      "indexer: boot"
+    );
 
-    if (START_BLOCK > 0) {
+    if (START_BLOCK >= 0) {
       logger.info({ start: START_BLOCK }, "indexer: backfill requested");
       await backfill(START_BLOCK);
     }
