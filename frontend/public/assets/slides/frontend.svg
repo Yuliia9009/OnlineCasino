@@ -1,0 +1,95 @@
+<svg width="1200" height="700" viewBox="0 0 1200 700" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#10B981" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#3B82F6" stop-opacity="0.25"/>
+    </linearGradient>
+    <linearGradient id="g2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#111827"/>
+      <stop offset="1" stop-color="#0B1220"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#10B981" flood-opacity="0.25"/>
+    </filter>
+    <style>
+      .card{fill:url(#g2);stroke:#1F2937;stroke-width:1.5;rx:16}
+      .txt{font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, 'Helvetica Neue', Arial;}
+      .title{fill:#E5E7EB;font-weight:700;font-size:22px}
+      .muted{fill:#9CA3AF;font-size:15px}
+      .label{fill:#D1FAE5;font-size:14px}
+      .chip{fill:#065F46; stroke:#10B981; stroke-opacity:.5; rx:10}
+      .chip2{fill:#0B3B74; stroke:#60A5FA; stroke-opacity:.5; rx:10}
+      .arrow{stroke:#34D399; stroke-width:3; marker-end:url(#m1)}
+      .arrow2{stroke:#60A5FA; stroke-width:3; marker-end:url(#m2)}
+      .arrow3{stroke:#F472B6; stroke-width:3; marker-end:url(#m3)}
+    </style>
+    <marker id="m1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <polyline points="0,0 10,5 0,10" fill="#34D399"/>
+    </marker>
+    <marker id="m2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <polyline points="0,0 10,5 0,10" fill="#60A5FA"/>
+    </marker>
+    <marker id="m3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <polyline points="0,0 10,5 0,10" fill="#F472B6"/>
+    </marker>
+  </defs>
+
+  <!-- фон -->
+  <rect x="0" y="0" width="1200" height="700" fill="#0B0F14"/>
+  <ellipse cx="240" cy="120" rx="240" ry="150" fill="url(#g1)" opacity=".25"/>
+  <ellipse cx="960" cy="620" rx="260" ry="160" fill="url(#g1)" opacity=".20"/>
+  <ellipse cx="600" cy="350" rx="360" ry="220" fill="url(#g1)" opacity=".18"/>
+
+  <!-- заголовок -->
+  <text x="50" y="70" class="txt title" style="font-size:30px">Frontend: как это работает</text>
+  <text x="50" y="98" class="txt muted">UI → MetaMask/ethers.js → смарт-контракт, параллельно UI → REST API бэкенда</text>
+
+  <!-- ЛЕВЫЙ СТОЛБЕЦ: UI -->
+  <rect x="60" y="150" width="330" height="420" class="card" filter="url(#shadow)"/>
+  <text x="85" y="190" class="txt title">UI (React + Vite)</text>
+  <text x="85" y="218" class="txt muted">Роутинг, страницы, Tailwind</text>
+
+  <rect x="85" y="240" width="280" height="30" class="chip"/><text x="95" y="260" class="txt label">/ (Login) — подключение кошелька</text>
+  <rect x="85" y="276" width="280" height="30" class="chip"/><text x="95" y="296" class="txt label">/cabinet — игра (спин, баланс)</text>
+  <rect x="85" y="312" width="280" height="30" class="chip"/><text x="95" y="332" class="txt label">/deposit — депозит</text>
+  <rect x="85" y="348" width="280" height="30" class="chip"/><text x="95" y="368" class="txt label">/withdraw — вывод</text>
+  <rect x="85" y="384" width="280" height="30" class="chip"/><text x="95" y="404" class="txt label">/feed — лента спинов</text>
+  <rect x="85" y="420" width="280" height="30" class="chip"/><text x="95" y="440" class="txt label">/admin — админ-панель</text>
+  <rect x="85" y="456" width="280" height="30" class="chip"/><text x="95" y="476" class="txt label">/presentation — презентация</text>
+
+  <rect x="85" y="498" width="280" height="28" class="chip2"/><text x="95" y="518" class="txt label">AdminRoute: проверка isAdmin()</text>
+  <rect x="85" y="532" width="280" height="28" class="chip2"/><text x="95" y="552" class="txt label">Navbar: connectWallet(), адрес</text>
+
+  <!-- ЦЕНТР: ethers + MetaMask -->
+  <rect x="450" y="160" width="300" height="150" class="card" filter="url(#shadow)"/>
+  <text x="475" y="200" class="txt title">ethers.js + MetaMask</text>
+  <text x="475" y="228" class="txt muted">Вызовы контракта, чтение сети/акк.</text>
+  <rect x="475" y="248" width="250" height="28" class="chip"/><text x="485" y="268" class="txt label">connectWallet(), onAccountChange()</text>
+
+  <!-- ПРАВО ВВЕРХУ: контракт -->
+  <rect x="820" y="140" width="320" height="200" class="card" filter="url(#shadow)"/>
+  <text x="845" y="180" class="txt title">Smart-contract: SlotMachine</text>
+  <text x="845" y="208" class="txt muted">deposit(), spin(), withdraw()</text>
+  <rect x="845" y="228" width="270" height="28" class="chip"/><text x="855" y="248" class="txt label">ABI + адрес → contractConfig.json</text>
+  <rect x="845" y="262" width="220" height="28" class="chip"/><text x="855" y="282" class="txt label">Сеть: Hardhat (31337)</text>
+
+  <!-- ПРАВО ВНИЗУ: Backend API -->
+  <rect x="820" y="400" width="320" height="180" class="card" filter="url(#shadow)"/>
+  <text x="845" y="440" class="txt title">Backend REST API</text>
+  <text x="845" y="468" class="txt muted">История, статистика, сводки</text>
+  <rect x="845" y="488" width="270" height="28" class="chip"/><text x="855" y="508" class="txt label">/api/spins/recent, /api/players/…</text>
+  <rect x="845" y="522" width="250" height="28" class="chip"/><text x="855" y="542" class="txt label">Prisma + MySQL (индексатор)</text>
+
+  <!-- СТРЕЛКИ -->
+  <!-- UI → ethers -->
+  <line x1="390" y1="310" x2="450" y2="235" class="arrow"/>
+  <text x="390" y="325" class="txt muted">подключение</text>
+
+  <!-- ethers → контракт -->
+  <line x1="750" y1="165" x2="820" y2="235" class="arrow2"/>
+  <text x="715" y="155" class="txt muted">tx: deposit/spin/withdraw</text>
+
+  <!-- UI → Backend -->
+  <line x1="390" y1="480" x2="820" y2="480" class="arrow3"/>
+  <text x="500" y="470" class="txt muted">fetch: история, статистика</text>
+</svg>

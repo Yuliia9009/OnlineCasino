@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="620" viewBox="0 0 1100 620">
+  <defs>
+    <style>
+      .box{fill:#0b0f19;stroke:#2b2f3a;stroke-width:2;rx:14;ry:14}
+      .title{fill:#e5f7ef;font:700 16px/1.2 system-ui}
+      .text{fill:#c9d4e3;font:14px/1.4 system-ui}
+      .mono{fill:#8bd5c0;font:12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace}
+      .arrow{stroke:#47d890;stroke-width:2;marker-end:url(#m)}
+      .soft{stroke:#3a4153;stroke-width:2}
+    </style>
+    <marker id="m" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#47d890"/>
+    </marker>
+    <linearGradient id="g" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#090d17"/>
+    </linearGradient>
+  </defs>
+
+  <!-- background -->
+  <rect x="0" y="0" width="1100" height="620" fill="url(#g)"/>
+
+  <!-- MetaMask / User -->
+  <rect class="box" x="40" y="50" width="290" height="110"/>
+  <text class="title" x="60" y="80">Браузер пользователя</text>
+  <text class="text"  x="60" y="108">• Интерфейс: React + Vite</text>
+  <text class="text"  x="60" y="132">• Кошелёк: MetaMask</text>
+  <text class="mono"  x="60" y="154">RPC → localhost:8545 (Hardhat)</text>
+
+  <!-- Frontend dApp -->
+  <rect class="box" x="40" y="200" width="290" height="150"/>
+  <text class="title" x="60" y="230">Frontend dApp</text>
+  <text class="text"  x="60" y="258">• Страницы: Login, Cabinet, Admin</text>
+  <text class="text"  x="60" y="282">• ethers.js для вызова контракта</text>
+  <text class="mono"  x="60" y="306">API → http://localhost:4000</text>
+
+  <!-- Backend API -->
+  <rect class="box" x="410" y="160" width="320" height="220"/>
+  <text class="title" x="430" y="190">Backend API (Node.js + Express)</text>
+  <text class="text"  x="430" y="218">• Prisma ORM, REST-эндпоинты</text>
+  <text class="text"  x="430" y="242">• Индексатор событий (Deposit/Spin/Withdraw)</text>
+  <text class="mono"  x="430" y="266">PORT=4000</text>
+  <text class="mono"  x="430" y="286">DATABASE_URL=mysql://…/onlinecasino</text>
+  <text class="mono"  x="430" y="306">RPC_URL_31337=http://localhost:8545</text>
+  <text class="mono"  x="430" y="326">CONTRACT_ADDRESS_31337=0x5F…</text>
+
+  <!-- MySQL -->
+  <rect class="box" x="410" y="410" width="320" height="150"/>
+  <text class="title" x="430" y="440">База данных (MySQL 8)</text>
+  <text class="text"  x="430" y="468">• Игроки, депозиты, спины, выводы</text>
+  <text class="text"  x="430" y="492">• Prisma schema + Prisma Studio</text>
+  <text class="mono"  x="430" y="514">Prisma Studio → http://localhost:5555</text>
+
+  <!-- Hardhat / Contract -->
+  <rect class="box" x="790" y="80" width="270" height="190"/>
+  <text class="title" x="810" y="108">Hardhat node (local)</text>
+  <text class="text"  x="810" y="136">• chainId=31337</text>
+  <text class="text"  x="810" y="160">• деплой скриптом /contracts</text>
+  <text class="mono"  x="810" y="184">RPC : http://localhost:8545</text>
+
+  <rect class="box" x="790" y="300" width="270" height="140"/>
+  <text class="title" x="810" y="330">Smart-contract: SlotMachine</text>
+  <text class="text"  x="810" y="356">• Deposit / SpinResult / Withdraw</text>
+  <text class="mono"  x="810" y="380">address = 0x5FbD…aa3</text>
+
+  <!-- arrows -->
+  <line class="arrow" x1="330" y1="255" x2="410" y2="255"/>
+  <text class="mono" x="330" y="245">REST /api/*</text>
+
+  <line class="arrow" x1="550" y1="380" x2="570" y2="410"/>
+  <text class="mono" x="450" y="398">Prisma (MySQL)</text>
+
+  <line class="arrow" x1="725" y1="220" x2="790" y2="175"/>
+  <text class="mono" x="725" y="165">ethers RPC</text>
+
+  <line class="arrow" x1="185" y1="160" x2="185" y2="200"/>
+  <text class="mono" x="70"  y="185">интеракции dApp</text>
+
+  <line class="soft"  x1="925" y1="270" x2="925" y2="300"/>
+  <text class="mono" x="840" y="290">deploy → address, ABI</text>
+
+  <!-- caption -->
+  <text class="mono" x="40" y="600">Монорепо: contracts / backend / frontend • Централизованный запуск: npm run dev или docker compose up</text>
+</svg>

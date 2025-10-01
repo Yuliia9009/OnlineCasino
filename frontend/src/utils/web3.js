@@ -21,6 +21,29 @@ export function isAdmin(address) {
 /* ========= Внутрішнє состояние ========= */
 let provider = null;
 let signer = null;
+let deployedCheckPromise = null;
+
+// Serialize expensive RPC setup to avoid MetaMask "circuit breaker" on parallel calls
+let ensureReadyPromise = null;
+
+async function ensureReady() {
+  if (!window.ethereum) throw new Error("No MetaMask");
+  provider ||= new ethers.BrowserProvider(window.ethereum);
+
+  // Create (or reuse) a single inflight promise so concurrent callers wait instead of spamming RPC
+  if (!ensureReadyPromise) {
+    ensureReadyPromise = (async () => {
+      await switchToExpectedChain(provider);
+      await assertDeployedOnce(provider);
+      try {
+        signer ||= await provider.getSigner();
+      } catch (_) {
+        // no signer yet (readonly)
+      }
+    })();
+  }
+  return ensureReadyPromise;
+}
 
 /* ========= Хелперы сети/контракта ========= */
 async function switchToExpectedChain(p) {
@@ -42,6 +65,21 @@ async function switchToExpectedChain(p) {
       throw e;
     }
   }
+}
+
+function assertDeployedOnce(p) {
+  // Cache the first successful code check to avoid spamming MetaMask RPC
+  if (!deployedCheckPromise) {
+    deployedCheckPromise = (async () => {
+      await assertDeployed(p);
+      return true;
+    })().catch((e) => {
+      // reset cache on failure so the next attempt can retry
+      deployedCheckPromise = null;
+      throw e;
+    });
+  }
+  return deployedCheckPromise;
 }
 
 async function assertDeployed(p) {
@@ -66,13 +104,10 @@ async function assertDeployed(p) {
 
 async function getContract(readonly = false) {
   if (!window.ethereum) throw new Error("No MetaMask");
-  provider ||= new ethers.BrowserProvider(window.ethereum);
-
-  await switchToExpectedChain(provider);
-  await assertDeployed(provider);
-
-  if (readonly) return new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
-  signer ||= await provider.getSigner();
+  await ensureReady();
+  if (readonly || !signer) {
+    return new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
+  }
   return new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
 }
 
@@ -81,11 +116,17 @@ async function getContract(readonly = false) {
 export async function connectWallet() {
   if (!window.ethereum) throw new Error("No MetaMask");
   provider = new ethers.BrowserProvider(window.ethereum);
-  await provider.send("eth_requestAccounts", []);
 
-  await switchToExpectedChain(provider);
-  await assertDeployed(provider);
+  // If already connected, don't spam MetaMask with another request
+  let accounts = [];
+  try {
+    accounts = await provider.send("eth_accounts", []);
+  } catch (_) {}
+  if (!accounts || accounts.length === 0) {
+    await provider.send("eth_requestAccounts", []);
+  }
 
+  await ensureReady();
   signer = await provider.getSigner();
   return await signer.getAddress();
 }
@@ -227,9 +268,16 @@ export async function spinSlot() {
 }
 
 /* ========= Підписка ========= */
+function resetConnectionCache() {
+  // allow re-running ensureReady for a new account/network
+  ensureReadyPromise = null;
+  signer = null;
+}
+
 export function onAccountChange(cb) {
   if (window.ethereum) {
     window.ethereum.on("accountsChanged", (accounts) => {
+      resetConnectionCache();
       cb(accounts.length ? accounts[0] : null);
     });
   }

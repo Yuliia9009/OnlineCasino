@@ -1,0 +1,72 @@
+
+services:
+  mysql:
+    image: mysql:8
+    container_name: oc-mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: pass
+      MYSQL_DATABASE: onlinecasino
+      TZ: UTC
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./backend/schema.sql:/docker-entrypoint-initdb.d/00-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -ppass || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 40
+
+  hardhat:
+    build: ./contracts
+    container_name: oc-hardhat
+    restart: always
+    ports:
+      - "8545:8545"
+    volumes:
+      - ./.shared:/out
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:8545',()=>process.exit(0)).on('error',()=>process.exit(1))\" "]
+      interval: 3s
+      timeout: 2s
+      retries: 60
+
+  backend:
+    build: ./backend
+    container_name: oc-backend
+    restart: always
+    env_file:
+      - ./backend/.env
+      - ./.shared/slot.env       
+    depends_on:
+      mysql:
+        condition: service_healthy
+      hardhat:
+        condition: service_healthy
+    environment:
+      # укажем RPC на контейнер hardhat
+      RPC_URL_31337: http://hardhat:8545
+      CHAIN_ID_DEFAULT: 31337
+      CORS_ORIGIN: http://localhost:5173
+    ports:
+      - "4000:4000"
+
+  frontend:
+    build: ./frontend
+    container_name: oc-frontend
+    restart: always
+    env_file:
+      - ./.shared/slot.env        
+    environment:
+      VITE_API_URL: http://localhost:4000
+      VITE_CHAIN_ID: "31337"
+    depends_on:
+      backend:
+        condition: service_started
+    ports:
+      - "5173:5173"
+
+volumes:
+  mysql_data:

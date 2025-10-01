@@ -1,0 +1,103 @@
+<svg width="1200" height="700" viewBox="0 0 1200 700" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <linearGradient id="bgGlow" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#10B981" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#3B82F6" stop-opacity="0.25"/>
+    </linearGradient>
+    <linearGradient id="cardFill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#111827"/>
+      <stop offset="1" stop-color="#0B1220"/>
+    </linearGradient>
+
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#10B981" flood-opacity=".22"/>
+    </filter>
+
+    <marker id="arrowGreen" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <polyline points="0,0 10,5 0,10" fill="#34D399"/>
+    </marker>
+    <marker id="arrowBlue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <polyline points="0,0 10,5 0,10" fill="#60A5FA"/>
+    </marker>
+    <marker id="arrowPink" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <polyline points="0,0 10,5 0,10" fill="#F472B6"/>
+    </marker>
+
+    <style>
+      .txt { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, 'Helvetica Neue', Arial; }
+      .title { fill:#E5E7EB; font-weight:700; font-size:22px; }
+      .muted { fill:#9CA3AF; font-size:15px; }
+      .chip { fill:#065F46; stroke:#10B981; stroke-opacity:.5; rx:8; }
+      .label { fill:#D1FAE5; font-size:14px; }
+      .card { fill:url(#cardFill); stroke:#1F2937; stroke-width:1.5; rx:16; }
+      .arrowG { stroke:#34D399; stroke-width:3; marker-end:url(#arrowGreen); }
+      .arrowB { stroke:#60A5FA; stroke-width:3; marker-end:url(#arrowBlue); }
+      .arrowP { stroke:#F472B6; stroke-width:3; marker-end:url(#arrowPink); }
+    </style>
+  </defs>
+
+  <!-- bg -->
+  <rect x="0" y="0" width="1200" height="700" fill="#0B0F14"/>
+  <ellipse cx="240" cy="110" rx="250" ry="150" fill="url(#bgGlow)" opacity=".25"/>
+  <ellipse cx="980" cy="620" rx="280" ry="170" fill="url(#bgGlow)" opacity=".20"/>
+  <ellipse cx="600" cy="360" rx="360" ry="220" fill="url(#bgGlow)" opacity=".18"/>
+
+  <!-- header -->
+  <text x="50" y="68" class="txt title" style="font-size:30px">Backend API + Индексатор</text>
+  <text x="50" y="96" class="txt muted">Node.js (Express) • Prisma • MySQL • ethers.js</text>
+
+  <!-- LEFT: Frontend box -->
+  <rect x="70" y="160" width="280" height="160" class="card" filter="url(#soft)"/>
+  <text x="95" y="198" class="txt title">Frontend dApp</text>
+  <text x="95" y="226" class="txt muted">Запросы в REST API</text>
+  <rect x="95" y="246" width="220" height="28" class="chip"/>
+  <text x="105" y="265" class="txt label">GET /api/stats, /api/spins…</text>
+
+  <!-- CENTER: Backend card -->
+  <rect x="380" y="140" width="440" height="420" class="card" filter="url(#soft)"/>
+  <text x="405" y="178" class="txt title">Backend (Express)</text>
+  <text x="405" y="204" class="txt muted">Сервис-слой для фронта и админки</text>
+
+  <!-- REST endpoints -->
+  <text x="405" y="238" class="txt title" style="font-size:18px">REST эндпоинты</text>
+  <rect x="405" y="252" width="190" height="26" class="chip"/><text x="415" y="271" class="txt label">/api/deposits</text>
+  <rect x="605" y="252" width="170" height="26" class="chip"/><text x="615" y="271" class="txt label">/api/withdraws</text>
+  <rect x="405" y="286" width="170" height="26" class="chip"/><text x="415" y="305" class="txt label">/api/spins</text>
+  <rect x="585" y="286" width="140" height="26" class="chip"/><text x="595" y="305" class="txt label">/api/stats</text>
+
+  <!-- Prisma -->
+  <text x="405" y="340" class="txt title" style="font-size:18px">Prisma ORM</text>
+  <text x="405" y="362" class="txt muted">Схема, миграции, типы</text>
+  <rect x="405" y="372" width="210" height="26" class="chip"/><text x="415" y="391" class="txt label">model Spin/Deposit/Withdraw</text>
+
+  <!-- Indexer -->
+  <text x="405" y="426" class="txt title" style="font-size:18px">Индексатор (ethers.js)</text>
+  <text x="405" y="448" class="txt muted">Слушает события смарт-контракта</text>
+  <rect x="405" y="458" width="250" height="26" class="chip"/><text x="415" y="477" class="txt label">Deposit / SpinResult / Withdraw</text>
+
+  <!-- RIGHT TOP: Smart contract -->
+  <rect x="860" y="140" width="280" height="160" class="card" filter="url(#soft)"/>
+  <text x="885" y="178" class="txt title">Smart-contract</text>
+  <text x="885" y="204" class="txt muted">SlotMachine (Hardhat)</text>
+  <rect x="885" y="224" width="210" height="26" class="chip"/><text x="895" y="243" class="txt label">address: 0x5FbD…aa3</text>
+
+  <!-- RIGHT BOTTOM: MySQL -->
+  <rect x="860" y="380" width="280" height="180" class="card" filter="url(#soft)"/>
+  <text x="885" y="418" class="txt title">База данных (MySQL 8)</text>
+  <text x="885" y="444" class="txt muted">Приложение ↔ Prisma</text>
+  <rect x="885" y="464" width="230" height="26" class="chip"/><text x="895" y="483" class="txt label">Users, Deposits, Spins, Withdraws</text>
+  <rect x="885" y="498" width="200" height="26" class="chip"/><text x="895" y="517" class="txt label">Prisma Studio: :5555</text>
+
+  <!-- ARROWS -->
+  <!-- FE -> Backend -->
+  <line x1="350" y1="240" x2="380" y2="240" class="arrowG"/>
+  <text x="345" y="222" class="txt muted">REST</text>
+
+  <!-- Contract -> Indexer (events) -->
+  <line x1="860" y1="220" x2="820" y2="300" class="arrowP"/>
+  <text x="900" y="315" class="txt muted" transform="rotate(-65 830 350)">events</text>
+
+  <!-- Backend -> MySQL -->
+  <line x1="820" y1="460" x2="860" y2="470" class="arrowB"/>
+  <text x="815" y="452" class="txt muted">Prisma</text>
+</svg>

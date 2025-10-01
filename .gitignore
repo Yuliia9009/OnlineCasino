@@ -1,7 +1,30 @@
+# root
+.DS_Store
+
+# Node/JS общие
 node_modules/
-.env
 dist/
 build/
-.vite/
 coverage/
-.DS_Store
+*.log
+npm-debug.log*
+
+# frontend
+frontend/node_modules/
+frontend/dist/
+
+# backend
+backend/node_modules/
+backend/dist/
+
+# hardhat
+contracts/artifacts/
+contracts/cache/
+contracts/typechain-types/
+
+# prisma
+backend/prisma/dev.db
+backend/prisma/dev.db-journal
+
+# docker
+docker-data/

@@ -1,0 +1,23 @@
+{
+  "name": "onlinecasino",
+  "private": true,
+  "workspaces": [
+    "contracts",
+    "backend",
+    "frontend"
+  ],
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "wait-on": "^9.0.1",
+    "cross-env": "^10.1.0"
+  },
+  "scripts": {
+    "dev": "npm run dev:stack",
+    "dev:stack": "concurrently -n HARDHAT,DEPLOY,BACKEND,FRONTEND,STUDIO -c yellow,magenta,cyan,green,blue \"npm:hardhat:node\" \"npm:hardhat:deploy:wait\" \"npm:backend:dev:wait\" \"npm:frontend:dev\" \"npm:studio\"",
+    "hardhat:node": "npm --workspace contracts run node",
+    "hardhat:deploy:wait": "wait-on tcp:127.0.0.1:8545 && npm --workspace contracts run deploy:local",
+    "backend:dev:wait": "npm --workspace backend run dev:ready",
+    "frontend:dev": "npm --workspace frontend run dev",
+    "studio": "npm --workspace backend run studio"
+  }
+}

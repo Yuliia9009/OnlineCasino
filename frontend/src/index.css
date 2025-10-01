@@ -2,5 +2,31 @@
 @tailwind components;
 @tailwind utilities;
 
-html, body, #root { height: 100%; }
-body { @apply bg-gray-900 text-gray-100; }
+html,
+body,
+#root {
+    height: 100%;
+}
+
+body {
+    @apply bg-gray-900 text-gray-100;
+}
+
+/* Гарантируем корректный шрифт для эмодзи */
+.emoji {
+    font-family:
+        "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol",
+        "Noto Color Emoji",
+        ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+        "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+    font-variant-emoji: emoji;
+}
+
+/* Удобно, когда заголовок целиком содержит эмодзи в тексте */
+.with-emoji {
+    font-family:
+        "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol",
+        "Noto Color Emoji",
+        ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+        "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+}

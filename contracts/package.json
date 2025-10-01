@@ -2,9 +2,11 @@
   "name": "contracts",
   "version": "1.0.0",
   "main": "index.js",
+  "private": true,
+  "description": "",
   "scripts": {
     "build": "hardhat compile",
-    "node": "hardhat node",
+    "node": "hardhat node --hostname 127.0.0.1",
     "deploy:local": "hardhat run scripts/deploy.js --network localhost",
     "deploy:hardhat": "hardhat run scripts/deploy.js --network hardhat"
   },
@@ -15,6 +17,5 @@
     "@nomicfoundation/hardhat-toolbox": "^6.1.0",
     "dotenv": "^16.4.5",
     "hardhat": "^2.26.0"
-  },
-  "description": ""
+  }
 }

@@ -5,6 +5,11 @@
   "main": "src/index.js",
   "type": "module",
   "scripts": {
+    "predev": "prisma generate",
+    "dev": "node src/index.js",
+    "dev:ready": "npm run db:prepare && cross-env NODE_ENV=development npm run dev",
+    "db:prepare": "prisma db push",
+    "studio": "prisma studio --browser none --port 5555",
     "dev": "nodemon src/index.js",
     "indexer": "node src/workers/indexer.js",
     "generate": "prisma generate",

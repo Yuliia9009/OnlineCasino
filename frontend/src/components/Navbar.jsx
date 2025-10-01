@@ -10,6 +10,7 @@ export default function Navbar({ address, onConnect }) {
                     <Link to="/" className="text-2xl font-bold">🎰 Йти до казино!</Link>
                     <Link to="/feed" className="text-sm text-gray-300">Активність</Link>
                     <Link to="/cabinet" className="text-sm text-gray-300">Мій кабінет</Link>
+                    <Link to="/presentation" className="text-sm text-gray-300">Презентація</Link>
                 </div>
                 <div>
                     {address ? (
