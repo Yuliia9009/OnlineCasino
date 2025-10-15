@@ -192,7 +192,7 @@ docker compose up -d --build
 - Backend API: http://localhost:4000
 - Prisma Studio (если включено в локальном режиме): http://localhost:5555
 
-> Запуск отдельного сервиса вроде `docker compose up -d --build frontend` **не рекомендуем**: фронт ожидает, что уже работают `hardhat` и `backend`.
+> Запуск отдельного сервиса вроде `docker compose up -d --build frontend` **не рекомендую**: фронт ожидает, что уже работают `hardhat` и `backend`.
 
 ---
 
